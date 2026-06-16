@@ -217,10 +217,29 @@ Set up and verify the `.understandignore` file before scanning.
        const gi = fs.readFileSync(gitignorePath, 'utf-8').split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#')).filter(p => !defaultSet.has(norm(p)));
        if (gi.length) { body += '# --- From .gitignore (uncomment to exclude) ---\n\n' + gi.map(p => '# ' + p).join('\n') + '\n\n'; }
      }
-     const dirs = ['__tests__','test','tests','fixtures','testdata','docs','examples','scripts','migrations','.storybook'];
-     const found = dirs.filter(d => fs.existsSync(path.join(root, d)));
+     const exactDirs = ['__tests__','test','tests','fixtures','testdata','docs','examples','scripts','migrations','.storybook','unittests','integrationtests'];
+     const suffixDirs = ['.tests','.unittests','.integrationtests'];
+     const found = [];
+     try {
+       for (const ent of fs.readdirSync(root, { withFileTypes: true })) {
+         if (!ent.isDirectory()) continue;
+         const lower = ent.name.toLowerCase();
+         if (exactDirs.includes(lower) || suffixDirs.some(s => lower.endsWith(s))) {
+           found.push(ent.name);
+         }
+       }
+     } catch {}
      if (found.length) { body += '# --- Detected directories (uncomment to exclude) ---\n\n' + found.map(d => '# ' + d + '/').join('\n') + '\n\n'; }
-     body += '# --- Test file patterns (uncomment to exclude) ---\n\n# *.test.*\n# *.spec.*\n# *.snap\n';
+     const patternGroups = [
+       ['JS / TS', ['*.test.*','*.spec.*','*.snap']],
+       ['C# / .NET', ['**/*Tests.cs','**/*Test.cs','**/*Fixture.cs','**/*.Tests.csproj']],
+       ['Java / Kotlin', ['**/src/test/**','**/*Test.java','**/*IT.java','**/*Spec.kt']],
+       ['Go', ['**/*_test.go']],
+     ];
+     body += '# --- Test file patterns (uncomment to exclude) ---\n\n';
+     for (const [label, pats] of patternGroups) {
+       body += '# ' + label + '\n' + pats.map(p => '# ' + p).join('\n') + '\n';
+     }
      const outDir = path.join(root, '.understand-anything');
      if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
      fs.writeFileSync(path.join(outDir, '.understandignore'), header + body);
